@@ -3,7 +3,7 @@
 -- Si lo mantienes privado, hace falta la variante con token.
 
 local USER, REPO, RAMA = "adrianin22", "Elevator", "main"
-local ARCHIVOS = { "elevador.lua" }   -- añade aqui mas ficheros cuando los haya
+local ARCHIVOS = { "elevador.lua", "test.lua" }   -- añade aqui mas ficheros cuando los haya
 
 local function baja(archivo)
   local url = ("https://raw.githubusercontent.com/%s/%s/%s/%s"):format(USER, REPO, RAMA, archivo)
@@ -23,5 +23,4 @@ end
 if fs.exists("elevador.lua") then
   shell.run("elevador.lua")
 else
-  print("No hay elevador.lua. Revisa el repo o la conexion HTTP.")
-end
+  print("No hay elevador.lua. Revisa el repo o la conexion 
