@@ -1,9 +1,9 @@
 -- elevador.lua (compacto)
-local F="computercraft:redstone_relay"
-local BTN,DOCK="top","back"
+local TF1,TF2="computercraft:redstone_relay","computercraft:redstone_relay"
+local DF1,DF2="computercraft:redstone_relay","minecraft:deepslate"
+local BTN="top"
 local YA,YB=63,-17
 local MD,MB=1.5,1.0
-local VS=1.0
 local TICK=0.15
 
 local function ok(p) return p and "OK" or "FALTA" end
@@ -21,35 +21,35 @@ while true do
   sleep(1.5)
 end
 
-local function thr(o) br.sendLinkSignal(F,F,o and 15 or 0) end
-local function dock(q) rl.setOutput(DOCK,q) end
+local function thr(o) br.sendLinkSignal(TF1,TF2,o and 15 or 0) end
+local function dock(q) br.sendLinkSignal(DF1,DF2,q and 15 or 0) end
 local function Y()
   local p=sublevel.getLogicalPose()
   local pp=p.position or p.pos or p
   return pp.y or pp[2]
 end
 
-local st,yp,emp="ABAJO",nil,false
-local function pin(y,v)
+local st,emp="ABAJO",false
+local function pin(y)
   term.clear();term.setCursorPos(1,1)
   print("=== ELEVADOR ===")
   print("Estado: "..st)
-  print(("Altura %.2f  Vel %.2f"):format(y,v or 0))
+  print(("Altura %.2f"):format(y))
   print("Empuje: "..(emp and "ON" or "OFF"))
   if st=="SUBIENDO" or st=="BAJANDO" then print(">> en movimiento <<")
   else print("Pulsa boton para "..(st=="ABAJO" and "SUBIR" or "BAJAR")) end
 end
 local function setemp(o) emp=o; thr(o) end
 local function ctl()
-  local y=Y(); local v=yp and (y-yp)/TICK or 0; yp=y
+  local y=Y()
   if st=="SUBIENDO" then
     setemp(true)
     if y>=YA-MD then setemp(false);dock(true);st="ARRIBA" end
   elseif st=="BAJANDO" then
     setemp(false)
     if y<=YB+MB then dock(true);st="ABAJO" end
-  else setemp(false) end
-  pin(y,v)
+  else setemp(false);dock(true) end
+  pin(y)
 end
 local function bt()
   if st=="SUBIENDO" or st=="BAJANDO" then return end
