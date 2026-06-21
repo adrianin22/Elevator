@@ -43,7 +43,7 @@ local function setemp(o) emp=o; thr(o) end
 local function ctl()
   local y=Y(); local v=yp and (y-yp)/TICK or 0; yp=y
   if st=="SUBIENDO" then
-    setemp(v<VS)
+    setemp(true)
     if y>=YA-MD then setemp(false);dock(true);st="ARRIBA" end
   elseif st=="BAJANDO" then
     setemp(false)
