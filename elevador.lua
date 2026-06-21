@@ -30,11 +30,22 @@ local TICK          = 0.15
 local DEBUG_POSE    = false  -- true UNA vez para ver la estructura de getLogicalPose
 ------------------------------------------
 
-assert(sublevel, "CC: Sable no detectado (el ordenador debe ir sobre el sub-level).")
-local relay = peripheral.find("redstone_relay")
-assert(relay, "No encuentro el redstone_relay (activa el modem hub).")
-local bridge = peripheral.find("redstone_link_bridge")
-assert(bridge, "No encuentro el redstone_link_bridge (coloca el bloque CC Redstone Link Bridge en la red).")
+-- Espera a tener el hardware (en vez de crashear). Asi SIEMPRE arranca y avisa que falta.
+local relay, bridge
+while true do
+  relay = peripheral.find("redstone_relay")
+  bridge = peripheral.find("redstone_link_bridge")
+  if sublevel and relay and bridge then break end
+  term.clear(); term.setCursorPos(1, 1)
+  print("== ELEVADOR: esperando hardware ==")
+  print("")
+  print("CC: Sable (sub-level): " .. (sublevel and "OK" or "FALTA (sube el computer al elevador)"))
+  print("redstone_relay       : " .. (relay and "OK" or "FALTA (activa el modem)"))
+  print("redstone_link_bridge : " .. (bridge and "OK" or "FALTA (pon el bloque CC Redstone Link Bridge)"))
+  print("")
+  print("Esperando...  (manten Ctrl+T para salir)")
+  sleep(1.5)
+end
 
 local empuje = false
 local function setThrust(on)
@@ -101,17 +112,4 @@ end
 
 -- El estado SOLO cambia estando PARADO. En movimiento el boton se ignora.
 local function boton()
-  if estado == "SUBIENDO" or estado == "BAJANDO" then return end
-  if estado == "ABAJO" then
-    setDocking(false); estado = "SUBIENDO"
-  elseif estado == "ARRIBA" then
-    setDocking(false); estado = "BAJANDO"
-  end
-end
-
-do
-  setThrust(false)
-  local y = alturaY()
-  if y >= ALTURA_ARRIBA - MARGEN_DOCK then estado = "ARRIBA" else estado = "ABAJO" end
-  setDocking(true)
-end
+  if
