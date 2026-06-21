@@ -1,9 +1,12 @@
--- elevador.lua (compacto)
+-- elevador.lua (control de velocidad)
 local TF1,TF2="computercraft:redstone_relay","computercraft:redstone_relay"
 local DF1,DF2="computercraft:redstone_relay","minecraft:deepslate"
 local BTN="top"
 local YA,YB=63,-17
 local MD,MB=1.5,1.0
+local VOBJ=7      -- velocidad objetivo (bloques/seg), sube y baja
+local HOVER=8     -- fuerza redstone 0-15 que ~cancela gravedad (TUNEAR)
+local KP=1.5      -- ganancia del control (TUNEAR)
 local TICK=0.15
 
 local function ok(p) return p and "OK" or "FALTA" end
@@ -14,14 +17,16 @@ while true do
   if sublevel and rl and br then break end
   term.clear();term.setCursorPos(1,1)
   print("ELEVADOR: esperando hardware")
-  print("Sable: "..ok(sublevel))
-  print("relay: "..ok(rl))
-  print("link_bridge: "..ok(br))
+  print("Sable: "..ok(sublevel)); print("relay: "..ok(rl)); print("link_bridge: "..ok(br))
   print("(Ctrl+T para salir)")
   sleep(1.5)
 end
 
-local function thr(o) br.sendLinkSignal(TF1,TF2,o and 15 or 0) end
+local sig=0
+local function setS(s)
+  s=math.floor(s+0.5); if s<0 then s=0 elseif s>15 then s=15 end
+  sig=s; br.sendLinkSignal(TF1,TF2,s)
+end
 local function dock(q) br.sendLinkSignal(DF1,DF2,q and 15 or 0) end
 local function Y()
   local p=sublevel.getLogicalPose()
@@ -29,27 +34,26 @@ local function Y()
   return pp.y or pp[2]
 end
 
-local st,emp="ABAJO",false
-local function pin(y)
+local st,yp="ABAJO",nil
+local function pin(y,v)
   term.clear();term.setCursorPos(1,1)
   print("=== ELEVADOR ===")
   print("Estado: "..st)
-  print(("Altura %.2f"):format(y))
-  print("Empuje: "..(emp and "ON" or "OFF"))
+  print(("Altura %.2f  Vel %.2f"):format(y,v or 0))
+  print("Senal: "..sig.."/15")
   if st=="SUBIENDO" or st=="BAJANDO" then print(">> en movimiento <<")
   else print("Pulsa boton para "..(st=="ABAJO" and "SUBIR" or "BAJAR")) end
 end
-local function setemp(o) emp=o; thr(o) end
 local function ctl()
-  local y=Y()
+  local y=Y(); local v=yp and (y-yp)/TICK or 0; yp=y
   if st=="SUBIENDO" then
-    setemp(true)
-    if y>=YA-MD then setemp(false);dock(true);st="ARRIBA" end
+    setS(HOVER+KP*(VOBJ-v))
+    if y>=YA-MD then setS(0);dock(true);st="ARRIBA" end
   elseif st=="BAJANDO" then
-    setemp(false)
-    if y<=YB+MB then dock(true);st="ABAJO" end
-  else setemp(false);dock(true) end
-  pin(y)
+    setS(HOVER+KP*(-VOBJ-v))
+    if y<=YB+MB then setS(0);dock(true);st="ABAJO" end
+  else setS(0);dock(true) end
+  pin(y,v)
 end
 local function bt()
   if st=="SUBIENDO" or st=="BAJANDO" then return end
@@ -57,7 +61,7 @@ local function bt()
   elseif st=="ARRIBA" then dock(false);st="BAJANDO" end
 end
 
-setemp(false)
+setS(0)
 local y0=Y(); st=(y0>=YA-MD) and "ARRIBA" or "ABAJO"; dock(true)
 local bp=false
 local tm=os.startTimer(TICK)
