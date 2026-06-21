@@ -1,35 +1,46 @@
--- elevador.lua - control por REDSTONE (workaround del bug del peripheral en v1.1.4, issues #44/#48)
--- El setPowerNormalized de los ion thrusters esta ROTO en esta version: no responden al peripheral.
--- Pero SI responden a redstone. Asi que el empuje se manda por redstone:
---   ordenador -> redstone_relay (salida) -> [Create redstone links, misma frecuencia] -> thrusters.
+-- elevador.lua - empuje por Create Redstone Link controlado desde Lua
+-- (mod "CC: Create Redstone Link", peripheral "redstone_link_bridge").
+--
+-- El setPowerNormalized de los ion thrusters esta ROTO en v1.1.4 (issues #44/#48): no responden
+-- al peripheral, pero SI a redstone. Mandamos esa redstone por un Create Redstone Link cuya
+-- frecuencia fijamos DESDE LUA:
+--   bridge.sendLinkSignal(freq1, freq2, fuerza)   -- fuerza 0..15
+-- El receptor del link (misma frecuencia) va junto a los thrusters y les da la redstone.
 --
 -- IMPORTANTE en el juego:
---   * Los thrusters deben estar DESCONECTADOS del modem. Si un ordenador esta "attached",
---     el thruster ignora la redstone. Sin modem, vuelven a modo redstone.
---   * El relay se queda en el modem (lo usa el ordenador para el boton y las salidas).
+--   * Los thrusters DESCONECTADOS del modem (si un ordenador esta "attached", ignoran la redstone).
+--   * Coloca el bloque "CC Redstone Link Bridge" en la red del ordenador (peripheral redstone_link_bridge).
 
------------------ CONFIG (ajustar al cableado del relay) -----------------
-local BTN_SIDE    = "top"     -- ENTRADA del boton en el relay
-local THRUST_SIDE = "front"   -- SALIDA del relay -> links -> thrusters (ON = empuje)
-local DOCK_SIDE   = "back"    -- SALIDA del relay -> docking connectors
+----------------- CONFIG -----------------
+local FREQ1     = "computercraft:redstone_relay"   -- frecuencia del link, slot 1
+local FREQ2     = "computercraft:redstone_relay"   -- frecuencia del link, slot 2
+local FUERZA_ON = 15                                -- 1..15 = empuje ; 0 = parado
+
+local BTN_SIDE  = "top"     -- boton: entrada del redstone_relay
+local DOCK_SIDE = "back"    -- docking: salida del redstone_relay
 
 local ALTURA_ARRIBA = 63
 local ALTURA_ABAJO  = -17
-local MARGEN_DOCK   = 1.5      -- distancia bajo 63 para enganchar arriba y cortar empuje
+local MARGEN_DOCK   = 1.5    -- distancia bajo 63 para enganchar arriba y cortar empuje
 local MARGEN_ABAJO  = 1.0
-local VEL_SUBIR     = 1.0      -- bloques/seg objetivo (control on/off para no pasarse)
-local DOCKING_NIVEL = true     -- true: docking con señal continua; false: por PULSO
+local VEL_SUBIR     = 1.0    -- bloques/seg objetivo (on/off para no pasarse)
+local DOCKING_NIVEL = true
 local T_PULSO       = 0.3
 local TICK          = 0.15
-local DEBUG_POSE    = false    -- true UNA vez para ver la estructura de getLogicalPose
--------------------------------------------------------------------------
+local DEBUG_POSE    = false  -- true UNA vez para ver la estructura de getLogicalPose
+------------------------------------------
 
 assert(sublevel, "CC: Sable no detectado (el ordenador debe ir sobre el sub-level).")
 local relay = peripheral.find("redstone_relay")
-assert(relay, "No encuentro el redstone_relay: activa el modem hub.")
+assert(relay, "No encuentro el redstone_relay (activa el modem hub).")
+local bridge = peripheral.find("redstone_link_bridge")
+assert(bridge, "No encuentro el redstone_link_bridge (coloca el bloque CC Redstone Link Bridge en la red).")
 
 local empuje = false
-local function setThrust(on) empuje = on; relay.setOutput(THRUST_SIDE, on) end
+local function setThrust(on)
+  empuje = on
+  bridge.sendLinkSignal(FREQ1, FREQ2, on and FUERZA_ON or 0)
+end
 
 local dockingEng = false
 local function setDocking(q)
@@ -73,7 +84,7 @@ local function control()
   yPrev = y
 
   if estado == "SUBIENDO" then
-    setThrust(vy < VEL_SUBIR)            -- on/off para mantener ~VEL_SUBIR de subida
+    setThrust(vy < VEL_SUBIR)            -- on/off para mantener ~VEL_SUBIR
     if y >= ALTURA_ARRIBA - MARGEN_DOCK then
       setThrust(false); setDocking(true); estado = "ARRIBA"
     end
@@ -82,7 +93,7 @@ local function control()
     if y <= ALTURA_ABAJO + MARGEN_ABAJO then
       setDocking(true); estado = "ABAJO"
     end
-  else -- ABAJO o ARRIBA: parado
+  else -- parado
     setThrust(false)
   end
   pintar(y, vy)
@@ -103,17 +114,4 @@ do
   local y = alturaY()
   if y >= ALTURA_ARRIBA - MARGEN_DOCK then estado = "ARRIBA" else estado = "ABAJO" end
   setDocking(true)
-end
-
-local botonPrev = false
-local tmr = os.startTimer(TICK)
-while true do
-  local ev, a = os.pullEvent()
-  if ev == "timer" and a == tmr then
-    local b = relay.getInput(BTN_SIDE)
-    if b and not botonPrev then boton() end
-    botonPrev = b
-    control()
-    tmr = os.startTimer(TICK)
-  end
 end
