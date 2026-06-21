@@ -2,7 +2,7 @@
 local TF1,TF2="computercraft:redstone_relay","computercraft:redstone_relay"
 local DF1,DF2="computercraft:redstone_relay","minecraft:deepslate"
 local BTN="top"
-local YA,YB=63,-18
+local YA,YB=63,-17
 local MD,MB=1.5,1.0
 local VOBJ=7      -- velocidad objetivo (bloques/seg), sube y baja
 local HOVER=8     -- fuerza redstone 0-15 que ~cancela gravedad (TUNEAR)
