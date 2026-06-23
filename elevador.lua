@@ -1,12 +1,13 @@
--- elevador.lua (control de velocidad)
+-- elevador.lua (control de velocidad + frenado al llegar)
 local TF1,TF2="computercraft:redstone_relay","computercraft:redstone_relay"
 local DF1,DF2="computercraft:redstone_relay","minecraft:deepslate"
 local BTN="top"
 local YA,YB=63,-17
 local MD,MB=1.5,1.0
-local VOBJ=7      -- velocidad objetivo (bloques/seg), sube y baja
+local VOBJ=7      -- velocidad objetivo (bloques/seg)
+local DECEL=5     -- ultimos N bloques: decelera de VOBJ hasta 0
 local HOVER=8     -- fuerza redstone 0-15 que ~cancela gravedad (TUNEAR)
-local KP=1.5      -- ganancia del control (TUNEAR)
+local KP=1.5      -- ganancia (TUNEAR)
 local TICK=0.15
 
 local function ok(p) return p and "OK" or "FALTA" end
@@ -35,25 +36,29 @@ local function Y()
 end
 
 local st,yp="ABAJO",nil
-local function pin(y,v)
+local function pin(y,v,vt)
   term.clear();term.setCursorPos(1,1)
   print("=== ELEVADOR ===")
   print("Estado: "..st)
-  print(("Altura %.2f  Vel %.2f"):format(y,v or 0))
+  print(("Altura %.2f"):format(y))
+  print(("Vel %.2f  obj %.2f"):format(v or 0, vt or 0))
   print("Senal: "..sig.."/15")
   if st=="SUBIENDO" or st=="BAJANDO" then print(">> en movimiento <<")
   else print("Pulsa boton para "..(st=="ABAJO" and "SUBIR" or "BAJAR")) end
 end
 local function ctl()
   local y=Y(); local v=yp and (y-yp)/TICK or 0; yp=y
+  local vt=0
   if st=="SUBIENDO" then
-    setS(HOVER+KP*(VOBJ-v))
+    vt=VOBJ*math.max(0,math.min(1,(YA-y)/DECEL))
+    setS(HOVER+KP*(vt-v))
     if y>=YA-MD then setS(0);dock(true);st="ARRIBA" end
   elseif st=="BAJANDO" then
-    setS(HOVER+KP*(-VOBJ-v))
+    vt=-VOBJ*math.max(0,math.min(1,(y-YB)/DECEL))
+    setS(HOVER+KP*(vt-v))
     if y<=YB+MB then setS(0);dock(true);st="ABAJO" end
   else setS(0);dock(true) end
-  pin(y,v)
+  pin(y,v,vt)
 end
 local function bt()
   if st=="SUBIENDO" or st=="BAJANDO" then return end
