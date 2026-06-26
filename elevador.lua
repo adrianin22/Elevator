@@ -1,15 +1,17 @@
--- elevador.lua (3 alturas: 64 / -17 / -62, velocidad estable)
+-- elevador.lua (3 alturas + mantener al llegar)
 local TF1,TF2="computercraft:redstone_relay","computercraft:redstone_relay"
 local DF1,DF2="computercraft:redstone_relay","minecraft:deepslate"
-local R_NORMAL="redstone_relay_3"   -- boton normal (toggle arriba/medio)
-local R_FONDO="redstone_relay_5"    -- boton: bajar al fondo (-62)
+local R_NORMAL="redstone_relay_3"
+local R_FONDO="redstone_relay_5"
 local BTN="top"
 local Y_TOP,Y_MID,Y_BOT=61,-17,-59
 local MD=1.5
-local VOBJ=7        -- velocidad objetivo (b/s)
-local DECEL=5       -- ultimos N bloques: frena hasta 0
-local HOVER=8       -- fuerza 0-15 que ~cancela gravedad (TUNEAR)
-local KP=1.5        -- ganancia (TUNEAR)
+local VOBJ=7
+local DECEL=5
+local HOVER=8
+local KP=1.5
+local HOLD_S=8     -- empuje bajito al llegar (mantiene mientras engancha el docking)
+local HOLD_T=1     -- segundos que sigue empujando bajito tras llegar
 local TICK=0.15
 
 local function ok(p) return p and "OK" or "FALTA" end
@@ -39,11 +41,12 @@ local function Y()
   return pp.y or pp[2]
 end
 
-local target,moviendo,yp=Y_MID,false,nil
+local target,moviendo,frenando,holdN,yp=Y_MID,false,false,0,nil
 local function pin(y,v,vt)
   term.clear();term.setCursorPos(1,1)
   print("=== ELEVADOR ===")
-  print("Destino: "..target.."  "..(moviendo and "MOVIENDO" or "PARADO"))
+  local fase=frenando and "FRENANDO" or (moviendo and "MOVIENDO" or "PARADO")
+  print("Destino: "..target.."  "..fase)
   print(("Altura %.2f"):format(y))
   print(("Vel %.2f  obj %.2f"):format(v or 0, vt or 0))
   print("Senal: "..sig.."/15")
@@ -51,11 +54,15 @@ end
 local function ctl()
   local y=Y(); local v=yp and (y-yp)/TICK or 0; yp=y
   local vt=0
-  if moviendo then
+  if frenando then
+    setS(HOLD_S)
+    holdN=holdN-1
+    if holdN<=0 then setS(0); frenando=false; moviendo=false end
+  elseif moviendo then
     local d=target-y
     vt=(d>=0 and 1 or -1)*VOBJ*math.min(1,math.abs(d)/DECEL)
     setS(HOVER+KP*(vt-v))
-    if math.abs(d)<=MD then setS(0);dock(true);moviendo=false end
+    if math.abs(d)<=MD then dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK) end
   else
     setS(0);dock(true)
   end
