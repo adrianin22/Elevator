@@ -1,6 +1,7 @@
--- elevador.lua (3 alturas + mantener al llegar)
+-- elevador.lua (3 alturas + pulso al llegar a MID)
 local TF1,TF2="computercraft:redstone_relay","computercraft:redstone_relay"
 local DF1,DF2="computercraft:redstone_relay","minecraft:deepslate"
+local MF1,MF2="minecraft:stripped_jungle_wood","minecraft:stone"  -- pulso al llegar a MID
 local R_NORMAL="redstone_relay_3"
 local R_FONDO="redstone_relay_5"
 local BTN="top"
@@ -10,8 +11,8 @@ local VOBJ=7
 local DECEL=5
 local HOVER=8
 local KP=1.5
-local HOLD_S=8     -- empuje bajito al llegar (mantiene mientras engancha el docking)
-local HOLD_T=1     -- segundos que sigue empujando bajito tras llegar
+local HOLD_S=8
+local HOLD_T=1
 local TICK=0.15
 
 local function ok(p) return p and "OK" or "FALTA" end
@@ -35,6 +36,7 @@ local function setS(s)
   sig=s; br.sendLinkSignal(TF1,TF2,s)
 end
 local function dock(q) br.sendLinkSignal(DF1,DF2,q and 15 or 0) end
+local function pulsoMid() br.sendLinkSignal(MF1,MF2,15); sleep(0.3); br.sendLinkSignal(MF1,MF2,0) end
 local function Y()
   local p=sublevel.getLogicalPose()
   local pp=p.position or p.pos or p
@@ -62,7 +64,10 @@ local function ctl()
     local d=target-y
     vt=(d>=0 and 1 or -1)*VOBJ*math.min(1,math.abs(d)/DECEL)
     setS(HOVER+KP*(vt-v))
-    if math.abs(d)<=MD then dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK) end
+    if math.abs(d)<=MD then
+      dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK)
+      if target==Y_MID then pulsoMid() end
+    end
   else
     setS(0);dock(true)
   end
