@@ -22,6 +22,7 @@ local VOBJ=7
 local DECEL=5
 local HOVER=8
 local KP=1.5
+local KI=0.25  -- integral anti-atasco: corrige el error de flotacion cerca del destino
 local HOLD_S=8
 local HOLD_T=1
 local TICK=0.15
@@ -52,6 +53,7 @@ local function Y()
 end
 
 local target,moviendo,frenando,holdN,yp=Y_MID,false,false,0,nil
+local integ=0
 local dest="?"
 local bulbState={TOP=-1,MID=-1,BOT=-1}
 local function setBulb(n,v)
@@ -91,7 +93,9 @@ local function ctl()
   elseif moviendo then
     local d=target-y
     vt=(d>=0 and 1 or -1)*VOBJ*math.min(1,math.abs(d)/DECEL)
-    setS(HOVER+KP*(vt-v))
+    integ=integ+KI*(vt-v)
+    if integ>8 then integ=8 elseif integ<-8 then integ=-8 end
+    setS(HOVER+KP*(vt-v)+integ)
     if math.abs(d)<=MD then
       dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK)
       if dest=="MID" then pulsoMid() end
@@ -105,7 +109,7 @@ end
 local function irA(t,n)
   if moviendo or frenando then return end
   if math.abs(Y()-t)<=MD then return end  -- ya estamos ahi
-  target=t;dest=n;dock(false);moviendo=true
+  target=t;dest=n;integ=0;dock(false);moviendo=true
 end
 
 local y0=Y()
