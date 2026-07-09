@@ -9,6 +9,7 @@ local BTNS={
   {"minecraft:pale_oak_log","minecraft:stripped_pale_oak_log",Y_MID,"MID"},
   {"minecraft:cherry_wood","minecraft:stripped_cherry_log",Y_BOT,"BOT"},
 }
+local MID_EXTRA=3  -- subiendo desde abajo hacia MID, apunta 3 bloques mas arriba
 local MD=1.5
 local VOBJ=7
 local DECEL=5
@@ -67,7 +68,7 @@ local function ctl()
     setS(HOVER+KP*(vt-v))
     if math.abs(d)<=MD then
       dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK)
-      if target==Y_MID then pulsoMid() end
+      if dest=="MID" then pulsoMid() end
     end
   else
     setS(0);dock(true)
@@ -91,11 +92,5 @@ while true do
   if e=="timer" and a==tm then
     for i,b in ipairs(BTNS) do
       local s=(b and br.getLinkSignal(b[1],b[2]) or 0)>0
-      if s and not prev[i] then irA(b[3],b[4]) end
-      prev[i]=s
-    end
-    ctl()
-    tm=os.startTimer(TICK)
-  end
-end
---@@END@@
+      if s and not prev[i] then
+        local t=b[3]
