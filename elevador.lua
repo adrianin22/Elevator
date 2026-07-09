@@ -52,9 +52,14 @@ local function Y()
   local pp=p.position or p.pos or p
   return pp.y or pp[2]
 end
+local function VY()  -- velocidad vertical real del motor de fisicas
+  local okv,vel=pcall(sublevel.getVelocity)
+  if okv and vel then return vel.y or vel[2] end
+  return nil
+end
 
 local target,moviendo,frenando,holdN,yp=Y_MID,false,false,0,nil
-local integ,vf=0,0
+local integ=0
 local dest="?"
 local bulbState={TOP=-1,MID=-1,BOT=-1}
 local function setBulb(n,v)
@@ -90,8 +95,10 @@ local function setSlew(s)  -- max +-2 niveles por tick para evitar trompicones
   setS(s)
 end
 local function ctl()
-  local y=Y(); local vraw=yp and (y-yp)/TICK or 0; yp=y
-  vf=vf*0.6+vraw*0.4; local v=vf  -- velocidad filtrada (menos ruido)
+  local y=Y()
+  local v=VY()
+  if not v then v=yp and (y-yp)/TICK or 0 end  -- fallback: derivada de posicion
+  yp=y
   local vt=0
   if frenando then
     setS(HOLD_S)
