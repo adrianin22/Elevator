@@ -1,33 +1,36 @@
--- startup.lua - baja elevador.lua y test.lua de GitHub (verificando que llegan COMPLETOS) y arranca.
+-- startup.lua — sincroniza desde GitHub y arranca el elevador
+-- Repo: https://github.com/adrianin22/Elevator  (publico)
+
 local USER, REPO, RAMA = "adrianin22", "Elevator", "main"
-local ARCHIVOS = { "elevador.lua", "test.lua" }
-local SENT = "--@@END@@"   -- marca de fin: si el archivo bajado no la trae, la descarga se corto
+local ARCHIVOS = { "startup.lua", "elevador.lua", "test.lua" }
 
 local function baja(archivo)
-  local url = "https://raw.githubusercontent.com/" .. USER .. "/" .. REPO .. "/" .. RAMA .. "/" .. archivo
-  for intento = 1, 5 do
-    local r = http.get(url)
+  local url = ("https://raw.githubusercontent.com/%s/%s/%s/%s?cb=%d"):format(USER, REPO, RAMA, archivo, os.epoch("utc"))
+  local err
+  for intento = 1, 3 do
+    local r; r, err = http.get(url)
     if r then
       local datos = r.readAll(); r.close()
-      if datos and datos:find(SENT, 1, true) then        -- completo
-        local f = fs.open(archivo, "w"); f.write(datos); f.close()
-        return true
-      end
+      local f = fs.open(archivo, "w")
+      if not f then return false, "no puedo escribir " .. archivo end
+      f.write(datos); f.close()
+      return true
     end
-    sleep(0.5)                                            -- reintenta si vino cortado/fallo
+    sleep(1)
   end
-  return false
+  return false, err
 end
 
 term.clear(); term.setCursorPos(1, 1)
 print("Sincronizando con GitHub...")
 for _, a in ipairs(ARCHIVOS) do
-  print((baja(a) and "  ok: " or "  FALLO descarga (uso version local): ") .. a)
+  local ok, err = baja(a)
+  if ok then print("  ok: " .. a)
+  else print("  FALLO: " .. a .. " -> " .. tostring(err)) end
 end
 
 if fs.exists("elevador.lua") then
   shell.run("elevador.lua")
 else
-  print("No hay elevador.lua; ejecutalo a mano.")
+  print("No hay elevador.lua. Revisa el repo o la conexion.")
 end
---@@END@@
