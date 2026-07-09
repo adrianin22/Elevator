@@ -79,4 +79,55 @@ local function pin(y,v,vt)
   print("Destino: "..dest.." ("..target..")  "..fase)
   print(("Altura %.2f"):format(y))
   print(("Vel %.2f  obj %.2f"):format(v or 0, vt or 0))
-  print("S
+  print("Senal: "..sig.."/15")
+end
+local function ctl()
+  local y=Y(); local v=yp and (y-yp)/TICK or 0; yp=y
+  local vt=0
+  if frenando then
+    setS(HOLD_S)
+    holdN=holdN-1
+    if holdN<=0 then setS(0); frenando=false; moviendo=false end
+  elseif moviendo then
+    local d=target-y
+    vt=(d>=0 and 1 or -1)*VOBJ*math.min(1,math.abs(d)/DECEL)
+    setS(HOVER+KP*(vt-v))
+    if math.abs(d)<=MD then
+      dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK)
+      if dest=="MID" then pulsoMid() end
+    end
+  else
+    setS(0);dock(true)
+  end
+  bulbs(y)
+  pin(y,v,vt)
+end
+local function irA(t,n)
+  if moviendo or frenando then return end
+  if math.abs(Y()-t)<=MD then return end  -- ya estamos ahi
+  target=t;dest=n;dock(false);moviendo=true
+end
+
+local y0=Y()
+target=(y0>=(Y_TOP+Y_MID)/2) and Y_TOP or ((y0>=(Y_MID+Y_BOT)/2) and Y_MID or Y_BOT)
+dest=(target==Y_TOP and "TOP") or (target==Y_MID and "MID") or "BOT"
+setS(0); dock(true)
+local prev={false,false,false}
+local tm=os.startTimer(TICK)
+while true do
+  local e,a=os.pullEvent()
+  if e=="timer" and a==tm then
+    for i,b in ipairs(BTNS) do
+      local s=(b and br.getLinkSignal(b[1],b[2]) or 0)>0
+      if s and not prev[i] then
+        local t=b[3]
+        if b[4]=="MID" and Y()<Y_MID then t=Y_MID+MID_EXTRA end
+        irA(t,b[4])
+      end
+      prev[i]=s
+    end
+    ctl()
+    tm=os.startTimer(TICK)
+  end
+end
+--@@END@@
