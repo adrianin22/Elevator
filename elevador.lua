@@ -1,4 +1,5 @@
 -- elevador.lua (3 alturas, botones por frecuencia de redstone link)
+local TF1,TF2="computercraft:redstone_relay","computercraft:redstone_relay"
 local DF1,DF2="computercraft:redstone_relay","minecraft:deepslate"
 local MF1,MF2="minecraft:stripped_jungle_wood","minecraft:stone"  -- pulso al llegar a MID
 local Y_TOP,Y_MID,Y_BOT=62,-17,-59
@@ -27,24 +28,21 @@ local HOLD_T=1
 local TICK=0.15
 
 local function ok(p) return p and "OK" or "FALTA" end
-local br,thr
+local br
 while true do
   br=peripheral.find("redstone_link_bridge")
-  thr={peripheral.find("ion_thruster")}
-  if sublevel and br and #thr>0 then break end
+  if sublevel and br then break end
   term.clear();term.setCursorPos(1,1)
   print("ELEVADOR: esperando hardware")
-  print("Sable:"..ok(sublevel).."  link_bridge:"..ok(br).."  thrusters:"..#thr)
+  print("Sable:"..ok(sublevel).."  link_bridge:"..ok(br))
   print("(Ctrl+T para salir)")
   sleep(1.5)
 end
 
 local sig=0
 local function setS(s)
-  if s<0 then s=0 elseif s>15 then s=15 end
-  sig=s
-  local pw=s/15
-  for _,t in ipairs(thr) do t.setPowerNormalized(pw) end
+  s=math.floor(s+0.5); if s<0 then s=0 elseif s>15 then s=15 end
+  sig=s; br.sendLinkSignal(TF1,TF2,s)
 end
 local function dock(q) br.sendLinkSignal(DF1,DF2,q and 15 or 0) end
 local function pulsoMid() br.sendLinkSignal(MF1,MF2,15); sleep(0.3); br.sendLinkSignal(MF1,MF2,0) end
@@ -83,7 +81,7 @@ local function pin(y,v,vt)
   print("Destino: "..dest.." ("..target..")  "..fase)
   print(("Altura %.2f"):format(y))
   print(("Vel %.2f  obj %.2f"):format(v or 0, vt or 0))
-  print(("Potencia %d%%  (%d thrusters)"):format(sig/15*100+0.5,#thr))
+  print("Senal: "..sig.."/15")
 end
 local function setSlew(s)  -- max +-2 niveles por tick para evitar trompicones
   local d=s-sig
