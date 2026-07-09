@@ -53,7 +53,7 @@ local function Y()
 end
 
 local target,moviendo,frenando,holdN,yp=Y_MID,false,false,0,nil
-local integ=0
+local integ,vf=0,0
 local dest="?"
 local bulbState={TOP=-1,MID=-1,BOT=-1}
 local function setBulb(n,v)
@@ -83,8 +83,14 @@ local function pin(y,v,vt)
   print(("Vel %.2f  obj %.2f"):format(v or 0, vt or 0))
   print("Senal: "..sig.."/15")
 end
+local function setSlew(s)  -- max +-2 niveles por tick para evitar trompicones
+  local d=s-sig
+  if d>2 then s=sig+2 elseif d<-2 then s=sig-2 end
+  setS(s)
+end
 local function ctl()
-  local y=Y(); local v=yp and (y-yp)/TICK or 0; yp=y
+  local y=Y(); local vraw=yp and (y-yp)/TICK or 0; yp=y
+  vf=vf*0.6+vraw*0.4; local v=vf  -- velocidad filtrada (menos ruido)
   local vt=0
   if frenando then
     setS(HOLD_S)
@@ -95,7 +101,7 @@ local function ctl()
     vt=(d>=0 and 1 or -1)*VOBJ*math.min(1,math.abs(d)/DECEL)
     integ=integ+KI*(vt-v)
     if integ>8 then integ=8 elseif integ<-8 then integ=-8 end
-    setS(HOVER+KP*(vt-v)+integ)
+    setSlew(HOVER+KP*(vt-v)+integ)
     if math.abs(d)<=MD then
       dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK)
       if dest=="MID" then pulsoMid() end
