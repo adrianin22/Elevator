@@ -22,7 +22,7 @@ local VOBJ_UP=7    -- velocidad objetivo subiendo (b/s)
 local VOBJ_DOWN=4  -- bajando: mas lenta para que sea alcanzable modulando, no apagando
 local DECEL=5
 local HOVER=8
-local KP=1.5
+local KP=1.0
 local KI=0.25  -- integral anti-atasco: corrige el error de flotacion cerca del destino
 local HOLD_S=8
 local HOLD_T=1
@@ -106,8 +106,10 @@ local function ctl()
     if (u>0 and u<15) or (u<=0 and err>0) or (u>=15 and err<0) then
       integ=integ+KI*err
       if integ>6 then integ=6 elseif integ<-6 then integ=-6 end
+      u=HOVER+KP*err+integ
     end
-    setSlew(HOVER+KP*err+integ)
+    if d<0 and u>HOVER+4 then u=HOVER+4 end  -- bajando: frena sin salir disparado arriba
+    setSlew(u)
     if math.abs(d)<=MD then
       dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK)
       if dest=="MID" then pulsoMid() end
@@ -122,6 +124,7 @@ local function irA(t,n)
   if moviendo or frenando then return end
   if math.abs(Y()-t)<=MD then return end  -- ya estamos ahi
   target=t;dest=n;integ=0;dock(false);moviendo=true
+  setS(HOVER)  -- arranca en equilibrio aprox, no desde 0
 end
 
 local y0=Y()
