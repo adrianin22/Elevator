@@ -18,7 +18,8 @@ local BULBS={
 local BLINK_T=3  -- ticks entre parpadeos (3*0.15s)
 local MID_EXTRA=3  -- subiendo desde abajo hacia MID, apunta 3 bloques mas arriba
 local MD=1.5
-local VOBJ=7
+local VOBJ_UP=7    -- velocidad objetivo subiendo (b/s)
+local VOBJ_DOWN=4  -- bajando: mas lenta para que sea alcanzable modulando, no apagando
 local DECEL=5
 local HOVER=8
 local KP=1.5
@@ -98,10 +99,15 @@ local function ctl()
     if holdN<=0 then setS(0); frenando=false; moviendo=false end
   elseif moviendo then
     local d=target-y
-    vt=(d>=0 and 1 or -1)*VOBJ*math.min(1,math.abs(d)/DECEL)
-    integ=integ+KI*(vt-v)
-    if integ>8 then integ=8 elseif integ<-8 then integ=-8 end
-    setSlew(HOVER+KP*(vt-v)+integ)
+    vt=(d>=0 and 1 or -1)*(d>=0 and VOBJ_UP or VOBJ_DOWN)*math.min(1,math.abs(d)/DECEL)
+    local err=vt-v
+    local u=HOVER+KP*err+integ
+    -- anti-windup: no integrar hacia la saturacion
+    if (u>0 and u<15) or (u<=0 and err>0) or (u>=15 and err<0) then
+      integ=integ+KI*err
+      if integ>6 then integ=6 elseif integ<-6 then integ=-6 end
+    end
+    setSlew(HOVER+KP*err+integ)
     if math.abs(d)<=MD then
       dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK)
       if dest=="MID" then pulsoMid() end
