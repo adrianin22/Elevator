@@ -3,8 +3,7 @@ local TF1,TF2="computercraft:redstone_relay","computercraft:redstone_relay"
 local DF1,DF2="computercraft:redstone_relay","minecraft:deepslate"
 local MF1,MF2="minecraft:stripped_jungle_wood","minecraft:stone"  -- pulso al llegar a MID
 local Y_TOP,Y_MID,Y_BOT=61,-17,-59
-local Y_TOP_LOW=60   -- zona de llegada TOP: 60..61
-local EXTRA_T=3      -- s de empuje suave extra si llega a 60 sin alcanzar 61
+local Y_TOP_LOW=60   -- TOP: docking al cruzar 60 (zona 60..61)
 -- Botones: link de Create en modo TRANSMITIR junto a cada boton, con este par de frecuencia
 local BTNS={
   {"minecraft:crimson_stem","minecraft:stripped_crimson_stem",Y_TOP,"TOP"},
@@ -23,7 +22,8 @@ local MD=1.5
 local ANTICIPO=0.45  -- s: adelanta el docking segun la velocidad actual
 local VOBJ_UP=5    -- velocidad objetivo subiendo (b/s)
 local VOBJ_DOWN=5  -- bajando: mas lenta para que sea alcanzable modulando, no apagando
-local A_DEC=2  -- deceleracion asumida (b/s^2): distancia de frenado = v^2/(2*A_DEC)
+local A_DEC=2  -- deceleracion asumida (b/s^2)
+local V_MIN=2  -- velocidad de aproximacion final (b/s): decelera solo UN POCO, nunca a 0
 local HOVER=8
 local KP=1.0
 local KI=0.25  -- integral anti-atasco: corrige el error de flotacion cerca del destino
@@ -63,7 +63,6 @@ end
 
 local target,moviendo,frenando,holdN,yp=Y_MID,false,false,0,nil
 local integ=0
-local extraN
 local dest="?"
 local bulbState={TOP=-1,MID=-1,BOT=-1}
 local function setBulb(n,v)
@@ -108,18 +107,10 @@ local function ctl()
     setS(HOLD_S)
     holdN=holdN-1
     if holdN<=0 then setS(0); frenando=false; moviendo=false end
-  elseif moviendo and dest=="TOP" and y>=Y_TOP_LOW then
-    -- zona 60..61: sigue con empuje suave hasta 61 o unos segundos, y frena
-    extraN=extraN or math.ceil(EXTRA_T/TICK)
-    extraN=extraN-1
-    setSlew(HOVER+1.5)
-    if y>=target or extraN<=0 then
-      dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK)
-    end
   elseif moviendo then
     local d=target-y
-    -- perfil de frenado: nunca mas rapido de lo que se puede frenar en la distancia restante
-    vt=(d>=0 and 1 or -1)*math.min((d>=0 and VOBJ_UP or VOBJ_DOWN), math.sqrt(2*A_DEC*math.abs(d)))
+    -- crucero constante; cerca del destino decelera suave hasta V_MIN (siempre analogico 1-15)
+    vt=(d>=0 and 1 or -1)*math.min((d>=0 and VOBJ_UP or VOBJ_DOWN), math.max(V_MIN, math.sqrt(2*A_DEC*math.abs(d))))
     local err=vt-v
     local u=HOVER+KP*err+integ
     -- anti-windup: no integrar hacia la saturacion
@@ -130,7 +121,10 @@ local function ctl()
     end
     if d<0 and u>HOVER+4 then u=HOVER+4 end  -- bajando: frena sin salir disparado arriba
     setSlew(u)
-    if dest~="TOP" and math.abs(d)<=MD+math.abs(v)*ANTICIPO then
+    local llego
+    if dest=="TOP" then llego=y>=Y_TOP_LOW  -- TOP: dock al cruzar 60, subiendo lento
+    else llego=math.abs(d)<=MD+math.abs(v)*ANTICIPO end
+    if llego then
       dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK)
       if dest=="MID" then pulsoMid() end
     end
@@ -143,7 +137,7 @@ end
 local function irA(t,n)
   if moviendo or frenando then return end
   if math.abs(Y()-t)<=MD then return end  -- ya estamos ahi
-  target=t;dest=n;integ=0;extraN=nil;dock(false);moviendo=true
+  target=t;dest=n;integ=0;dock(false);moviendo=true
   setS(HOVER)  -- arranca en equilibrio aprox, no desde 0
 end
 
