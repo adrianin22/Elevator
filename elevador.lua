@@ -19,7 +19,8 @@ local BULBS={
 local BLINK_T=3  -- ticks entre parpadeos (3*0.15s)
 local MID_EXTRA=3  -- subiendo desde abajo hacia MID, apunta 3 bloques mas arriba
 local MD=1.5
-local ANTICIPO=0.45  -- s: adelanta el docking segun la velocidad actual
+local ANTICIPO=0.45  -- s: adelanta el frenado final segun la velocidad
+local DOCK_D=6       -- bloques: distancia a la que se arman los docking connectors
 local VOBJ_UP=5    -- velocidad objetivo subiendo (b/s)
 local VOBJ_DOWN=5  -- bajando: mas lenta para que sea alcanzable modulando, no apagando
 local A_DEC=2  -- deceleracion asumida (b/s^2)
@@ -63,6 +64,7 @@ end
 
 local target,moviendo,frenando,holdN,yp=Y_MID,false,false,0,nil
 local integ=0
+local dockOn=false
 local dest="?"
 local bulbState={TOP=-1,MID=-1,BOT=-1}
 local function setBulb(n,v)
@@ -121,6 +123,7 @@ local function ctl()
     end
     if d<0 and u>HOVER+4 then u=HOVER+4 end  -- bajando: frena sin salir disparado arriba
     setSlew(u)
+    if not dockOn and math.abs(d)<=DOCK_D then dock(true); dockOn=true end  -- arma docking a 6 bloques
     local llego
     if dest=="TOP" then llego=y>=Y_TOP_LOW  -- TOP: dock al cruzar 60, subiendo lento
     else llego=math.abs(d)<=MD+math.abs(v)*ANTICIPO end
@@ -137,7 +140,7 @@ end
 local function irA(t,n)
   if moviendo or frenando then return end
   if math.abs(Y()-t)<=MD then return end  -- ya estamos ahi
-  target=t;dest=n;integ=0;dock(false);moviendo=true
+  target=t;dest=n;integ=0;dockOn=false;dock(false);moviendo=true
   setS(HOVER)  -- arranca en equilibrio aprox, no desde 0
 end
 
