@@ -1,10 +1,9 @@
--- elevador.lua (3 alturas, botones por frecuencia de redstone link)
+-- elevador.lua — control ORIGINAL + botones/bulbs por frecuencia
 local TF1,TF2="computercraft:redstone_relay","computercraft:redstone_relay"
 local DF1,DF2="computercraft:redstone_relay","minecraft:deepslate"
 local MF1,MF2="minecraft:stripped_jungle_wood","minecraft:stone"  -- pulso al llegar a MID
 local Y_TOP,Y_MID,Y_BOT=61,-17,-59
-local Y_TOP_LOW=60   -- TOP: docking al cruzar 60 (zona 60..61)
--- Botones: link de Create en modo TRANSMITIR junto a cada boton, con este par de frecuencia
+-- Botones: link de Create en modo TRANSMITIR junto a cada boton
 local BTNS={
   {"minecraft:crimson_stem","minecraft:stripped_crimson_stem",Y_TOP,"TOP"},
   {"minecraft:pale_oak_log","minecraft:stripped_pale_oak_log",Y_MID,"MID"},
@@ -16,20 +15,14 @@ local BULBS={
   MID={"minecraft:pale_oak_slab","minecraft:pale_oak_stairs"},
   BOT={"minecraft:mangrove_door","minecraft:cherry_stairs"},
 }
-local BLINK_T=3  -- ticks entre parpadeos (3*0.15s)
+local BLINK_T=3
 local MID_EXTRA=3  -- subiendo desde abajo hacia MID, apunta 3 bloques mas arriba
 local MD=1.5
-local ANTICIPO=0.45  -- s: adelanta el frenado final segun la velocidad
-local DOCK_D=6       -- bloques: distancia a la que se arman los docking connectors
-local VOBJ_UP=3    -- velocidad objetivo subiendo (b/s)
-local VOBJ_DOWN=3  -- bajando: mas lenta para que sea alcanzable modulando, no apagando
-local A_DEC=1  -- deceleracion asumida (b/s^2)
-local V_MIN=1  -- velocidad de aproximacion final (b/s): decelera solo UN POCO, nunca a 0
-local S_MAX=6   -- senal maxima util: con mas de 6 los thrusters van demasiado fuertes
-local HOVER=3   -- punto de equilibrio aproximado dentro del rango 1-6
-local KP=0.6
-local KI=0.15  -- integral anti-atasco: corrige el error de flotacion cerca del destino
-local HOLD_S=4
+local VOBJ=7
+local DECEL=5
+local HOVER=8
+local KP=1.5
+local HOLD_S=8
 local HOLD_T=1
 local TICK=0.15
 
@@ -47,7 +40,7 @@ end
 
 local sig=0
 local function setS(s)
-  s=math.floor(s+0.5); if s<0 then s=0 elseif s>S_MAX then s=S_MAX end
+  s=math.floor(s+0.5); if s<0 then s=0 elseif s>15 then s=15 end
   sig=s; br.sendLinkSignal(TF1,TF2,s)
 end
 local function dock(q) br.sendLinkSignal(DF1,DF2,q and 15 or 0) end
@@ -57,16 +50,8 @@ local function Y()
   local pp=p.position or p.pos or p
   return pp.y or pp[2]
 end
-local function VY()  -- velocidad vertical real del motor de fisicas
-  local okv,vel=pcall(sublevel.getVelocity)
-  if okv and vel then return vel.y or vel[2] end
-  return nil
-end
 
 local target,moviendo,frenando,holdN,yp=Y_MID,false,false,0,nil
-local integ=0
-local dockOn=false
-local stVmax,stSsum,stSn=0,0,0  -- telemetria del viaje
 local dest="?"
 local bulbState={TOP=-1,MID=-1,BOT=-1}
 local function setBulb(n,v)
@@ -78,11 +63,11 @@ local function nearestFloor(y)
 end
 local blink,blinkN=false,0
 local function bulbs(y)
-  if moviendo and not frenando then          -- viajando: parpadea el destino
+  if moviendo and not frenando then
     blinkN=blinkN+1
     if blinkN>=BLINK_T then blinkN=0; blink=not blink end
     for n in pairs(BULBS) do setBulb(n,(n==dest and blink) and 15 or 0) end
-  else                                       -- llegando o parado: fijo el mas cercano
+  else
     local nf=frenando and dest or nearestFloor(y)
     for n in pairs(BULBS) do setBulb(n,n==nf and 15 or 0) end
   end
@@ -94,19 +79,10 @@ local function pin(y,v,vt)
   print("Destino: "..dest.." ("..target..")  "..fase)
   print(("Altura %.2f"):format(y))
   print(("Vel %.2f  obj %.2f"):format(v or 0, vt or 0))
-  print("Senal: "..sig.."/"..S_MAX)
-  if stSn>0 then print(("Ult.viaje: vmax %.1f  senal media crucero %.1f"):format(stVmax,stSsum/stSn)) end
-end
-local function setSlew(s)  -- max +-1 nivel por tick: todo gradual, nada de impulsos
-  local d=s-sig
-  if d>1 then s=sig+1 elseif d<-1 then s=sig-1 end
-  setS(s)
+  print("Senal: "..sig.."/15")
 end
 local function ctl()
-  local y=Y()
-  local v=VY()
-  if not v then v=yp and (y-yp)/TICK or 0 end  -- fallback: derivada de posicion
-  yp=y
+  local y=Y(); local v=yp and (y-yp)/TICK or 0; yp=y
   local vt=0
   if frenando then
     setS(HOLD_S)
@@ -114,25 +90,9 @@ local function ctl()
     if holdN<=0 then setS(0); frenando=false; moviendo=false end
   elseif moviendo then
     local d=target-y
-    -- crucero constante; cerca del destino decelera suave hasta V_MIN (siempre analogico 1-15)
-    vt=(d>=0 and 1 or -1)*math.min((d>=0 and VOBJ_UP or VOBJ_DOWN), math.max(V_MIN, math.sqrt(2*A_DEC*math.abs(d))))
-    local err=vt-v
-    local u=HOVER+KP*err+integ
-    -- anti-windup: no integrar hacia la saturacion
-    if (u>0 and u<S_MAX) or (u<=0 and err>0) or (u>=S_MAX and err<0) then
-      integ=integ+KI*err
-      if integ>3 then integ=3 elseif integ<-3 then integ=-3 end
-      u=HOVER+KP*err+integ
-    end
-    if d<0 and u>HOVER+2 then u=HOVER+2 end  -- bajando: frena sin salir disparado arriba
-    setSlew(u)
-    if not dockOn and math.abs(d)<=DOCK_D then dock(true); dockOn=true end  -- arma docking a 6 bloques
-    if math.abs(v)>stVmax then stVmax=math.abs(v) end
-    if math.abs(d)>DOCK_D then stSsum=stSsum+sig; stSn=stSn+1 end
-    local llego
-    if dest=="TOP" then llego=y>=Y_TOP_LOW  -- TOP: dock al cruzar 60, subiendo lento
-    else llego=math.abs(d)<=MD+math.abs(v)*ANTICIPO end
-    if llego then
+    vt=(d>=0 and 1 or -1)*VOBJ*math.min(1,math.abs(d)/DECEL)
+    setS(HOVER+KP*(vt-v))
+    if math.abs(d)<=MD then
       dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK)
       if dest=="MID" then pulsoMid() end
     end
@@ -144,9 +104,8 @@ local function ctl()
 end
 local function irA(t,n)
   if moviendo or frenando then return end
-  if math.abs(Y()-t)<=MD then return end  -- ya estamos ahi
-  target=t;dest=n;integ=0;dockOn=false;stVmax=0;stSsum=0;stSn=0;dock(false);moviendo=true
-  setS(HOVER)  -- arranca en equilibrio aprox, no desde 0
+  if math.abs(Y()-t)<=MD then return end
+  target=t;dest=n;dock(false);moviendo=true
 end
 
 local y0=Y()
