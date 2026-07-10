@@ -21,7 +21,7 @@ local MD=1.5
 local ANTICIPO=0.45  -- s: adelanta el docking segun la velocidad actual
 local VOBJ_UP=5    -- velocidad objetivo subiendo (b/s)
 local VOBJ_DOWN=5  -- bajando: mas lenta para que sea alcanzable modulando, no apagando
-local DECEL=5
+local A_DEC=2  -- deceleracion asumida (b/s^2): distancia de frenado = v^2/(2*A_DEC)
 local HOVER=8
 local KP=1.0
 local KI=0.25  -- integral anti-atasco: corrige el error de flotacion cerca del destino
@@ -107,7 +107,8 @@ local function ctl()
     if holdN<=0 then setS(0); frenando=false; moviendo=false end
   elseif moviendo then
     local d=target-y
-    vt=(d>=0 and 1 or -1)*(d>=0 and VOBJ_UP or VOBJ_DOWN)*math.min(1,math.abs(d)/DECEL)
+    -- perfil de frenado: nunca mas rapido de lo que se puede frenar en la distancia restante
+    vt=(d>=0 and 1 or -1)*math.min((d>=0 and VOBJ_UP or VOBJ_DOWN), math.sqrt(2*A_DEC*math.abs(d)))
     local err=vt-v
     local u=HOVER+KP*err+integ
     -- anti-windup: no integrar hacia la saturacion
