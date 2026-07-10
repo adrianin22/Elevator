@@ -21,10 +21,10 @@ local MID_EXTRA=3  -- subiendo desde abajo hacia MID, apunta 3 bloques mas arrib
 local MD=1.5
 local ANTICIPO=0.45  -- s: adelanta el frenado final segun la velocidad
 local DOCK_D=6       -- bloques: distancia a la que se arman los docking connectors
-local VOBJ_UP=5    -- velocidad objetivo subiendo (b/s)
-local VOBJ_DOWN=5  -- bajando: mas lenta para que sea alcanzable modulando, no apagando
-local A_DEC=2  -- deceleracion asumida (b/s^2)
-local V_MIN=2  -- velocidad de aproximacion final (b/s): decelera solo UN POCO, nunca a 0
+local VOBJ_UP=3    -- velocidad objetivo subiendo (b/s)
+local VOBJ_DOWN=3  -- bajando: mas lenta para que sea alcanzable modulando, no apagando
+local A_DEC=1  -- deceleracion asumida (b/s^2)
+local V_MIN=1  -- velocidad de aproximacion final (b/s): decelera solo UN POCO, nunca a 0
 local S_MAX=6   -- senal maxima util: con mas de 6 los thrusters van demasiado fuertes
 local HOVER=3   -- punto de equilibrio aproximado dentro del rango 1-6
 local KP=0.6
@@ -66,6 +66,7 @@ end
 local target,moviendo,frenando,holdN,yp=Y_MID,false,false,0,nil
 local integ=0
 local dockOn=false
+local stVmax,stSsum,stSn=0,0,0  -- telemetria del viaje
 local dest="?"
 local bulbState={TOP=-1,MID=-1,BOT=-1}
 local function setBulb(n,v)
@@ -94,6 +95,7 @@ local function pin(y,v,vt)
   print(("Altura %.2f"):format(y))
   print(("Vel %.2f  obj %.2f"):format(v or 0, vt or 0))
   print("Senal: "..sig.."/"..S_MAX)
+  if stSn>0 then print(("Ult.viaje: vmax %.1f  senal media crucero %.1f"):format(stVmax,stSsum/stSn)) end
 end
 local function setSlew(s)  -- max +-1 nivel por tick: todo gradual, nada de impulsos
   local d=s-sig
@@ -125,6 +127,8 @@ local function ctl()
     if d<0 and u>HOVER+2 then u=HOVER+2 end  -- bajando: frena sin salir disparado arriba
     setSlew(u)
     if not dockOn and math.abs(d)<=DOCK_D then dock(true); dockOn=true end  -- arma docking a 6 bloques
+    if math.abs(v)>stVmax then stVmax=math.abs(v) end
+    if math.abs(d)>DOCK_D then stSsum=stSsum+sig; stSn=stSn+1 end
     local llego
     if dest=="TOP" then llego=y>=Y_TOP_LOW  -- TOP: dock al cruzar 60, subiendo lento
     else llego=math.abs(d)<=MD+math.abs(v)*ANTICIPO end
@@ -141,7 +145,7 @@ end
 local function irA(t,n)
   if moviendo or frenando then return end
   if math.abs(Y()-t)<=MD then return end  -- ya estamos ahi
-  target=t;dest=n;integ=0;dockOn=false;dock(false);moviendo=true
+  target=t;dest=n;integ=0;dockOn=false;stVmax=0;stSsum=0;stSn=0;dock(false);moviendo=true
   setS(HOVER)  -- arranca en equilibrio aprox, no desde 0
 end
 
