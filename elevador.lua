@@ -25,10 +25,11 @@ local VOBJ_UP=5    -- velocidad objetivo subiendo (b/s)
 local VOBJ_DOWN=5  -- bajando: mas lenta para que sea alcanzable modulando, no apagando
 local A_DEC=2  -- deceleracion asumida (b/s^2)
 local V_MIN=2  -- velocidad de aproximacion final (b/s): decelera solo UN POCO, nunca a 0
-local HOVER=8
-local KP=1.0
-local KI=0.25  -- integral anti-atasco: corrige el error de flotacion cerca del destino
-local HOLD_S=8
+local S_MAX=6   -- senal maxima util: con mas de 6 los thrusters van demasiado fuertes
+local HOVER=3   -- punto de equilibrio aproximado dentro del rango 1-6
+local KP=0.6
+local KI=0.15  -- integral anti-atasco: corrige el error de flotacion cerca del destino
+local HOLD_S=4
 local HOLD_T=1
 local TICK=0.15
 
@@ -46,7 +47,7 @@ end
 
 local sig=0
 local function setS(s)
-  s=math.floor(s+0.5); if s<0 then s=0 elseif s>15 then s=15 end
+  s=math.floor(s+0.5); if s<0 then s=0 elseif s>S_MAX then s=S_MAX end
   sig=s; br.sendLinkSignal(TF1,TF2,s)
 end
 local function dock(q) br.sendLinkSignal(DF1,DF2,q and 15 or 0) end
@@ -92,11 +93,11 @@ local function pin(y,v,vt)
   print("Destino: "..dest.." ("..target..")  "..fase)
   print(("Altura %.2f"):format(y))
   print(("Vel %.2f  obj %.2f"):format(v or 0, vt or 0))
-  print("Senal: "..sig.."/15")
+  print("Senal: "..sig.."/"..S_MAX)
 end
-local function setSlew(s)  -- max +-2 niveles por tick para evitar trompicones
+local function setSlew(s)  -- max +-1 nivel por tick: todo gradual, nada de impulsos
   local d=s-sig
-  if d>2 then s=sig+2 elseif d<-2 then s=sig-2 end
+  if d>1 then s=sig+1 elseif d<-1 then s=sig-1 end
   setS(s)
 end
 local function ctl()
@@ -116,12 +117,12 @@ local function ctl()
     local err=vt-v
     local u=HOVER+KP*err+integ
     -- anti-windup: no integrar hacia la saturacion
-    if (u>0 and u<15) or (u<=0 and err>0) or (u>=15 and err<0) then
+    if (u>0 and u<S_MAX) or (u<=0 and err>0) or (u>=S_MAX and err<0) then
       integ=integ+KI*err
-      if integ>6 then integ=6 elseif integ<-6 then integ=-6 end
+      if integ>3 then integ=3 elseif integ<-3 then integ=-3 end
       u=HOVER+KP*err+integ
     end
-    if d<0 and u>HOVER+4 then u=HOVER+4 end  -- bajando: frena sin salir disparado arriba
+    if d<0 and u>HOVER+2 then u=HOVER+2 end  -- bajando: frena sin salir disparado arriba
     setSlew(u)
     if not dockOn and math.abs(d)<=DOCK_D then dock(true); dockOn=true end  -- arma docking a 6 bloques
     local llego
