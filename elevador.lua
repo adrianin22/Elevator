@@ -18,8 +18,9 @@ local BULBS={
 local BLINK_T=3  -- ticks entre parpadeos (3*0.15s)
 local MID_EXTRA=3  -- subiendo desde abajo hacia MID, apunta 3 bloques mas arriba
 local MD=1.5
+local ANTICIPO=0.45  -- s: adelanta el docking segun la velocidad actual
 local VOBJ_UP=7    -- velocidad objetivo subiendo (b/s)
-local VOBJ_DOWN=4  -- bajando: mas lenta para que sea alcanzable modulando, no apagando
+local VOBJ_DOWN=3  -- bajando: mas lenta para que sea alcanzable modulando, no apagando
 local DECEL=5
 local HOVER=8
 local KP=1.0
@@ -117,7 +118,7 @@ local function ctl()
     end
     if d<0 and u>HOVER+4 then u=HOVER+4 end  -- bajando: frena sin salir disparado arriba
     setSlew(u)
-    if math.abs(d)<=MD then
+    if math.abs(d)<=MD+math.abs(v)*ANTICIPO then
       dock(true); frenando=true; holdN=math.ceil(HOLD_T/TICK)
       if dest=="MID" then pulsoMid() end
     end
